@@ -1,0 +1,43 @@
+Symbols: Q, M, W, F, A, B, C, D, E
+Initial conditions: Quad(Q), Movable(Q), Movable(M), Mob(M), Fire(F), Water(W), Loc(W), Loc(F), Loc(A), Loc(B), Loc(C), Loc(D), Loc(E), Three(F), Fly(Q), Empty(Q), At(Q, B), At(M, A), NeedCharge(Q)
+Goal conditions: Extinguished(F)
+
+Actions:
+        MoveMobileAlone(x,y)
+        Preconditions: Loc(x), Loc(y), At(M,x), Fly(Q)
+        Effects: !At(M,x), At(M,y)
+
+        MoveTogether(x,y)
+        Preconditions: Loc(x), Loc(y), At(M,x), At(Q,x), !Fly(Q)
+        Effects: !At(M,x), At(M,y), !At(Q,x), At(Q,y)
+
+        QuadcopterLandOnMobile(x)
+        Preconditions: Loc(x), At(M,x), At(Q,x), Fly(Q)
+        Effects: !Fly(Q)
+        
+        Charge(Q)
+        Preconditions: !Fly(Q), NeedCharge(Q)
+        Effects: !NeedCharge(Q), Charged(Q)
+        
+        FlyAround(x)
+        Preconditions: Loc(x), !Fly(Q), At(M,x), At(Q,x), !NeedCharge(Q)
+        Effects: NeedCharge(Q), Fly(Q), !Charged(Q)
+        
+        Fill(Q)
+        Preconditions: !Fly(Q), At(M,W), At(Q,W), Empty(Q)
+        Effects: !Empty(Q), Filled(Q)
+        
+        PourFirstTime(F)
+        Preconditions: Fire(F), At(Q,F), At(M,F), !Empty(Q), Three(F), Fly(Q)
+        Effects: Empty(Q), Two(F), !Three(F), !Filled(Q)
+        
+        PourSecondtime(F)
+        Preconditions: Fire(F), At(Q,F), At(M,F), !Empty(Q), Two(F), Fly(Q)
+        Effects: Empty(Q), One(F), !Two(F), !Filled(Q)
+        
+        PourThirdtime(F)
+        Preconditions: Fire(F), At(Q,F), At(M,F), !Empty(Q), One(F), Fly(Q)
+        Effects: Empty(Q), Extinguished(F), !One(F), !Filled(Q)
+        
+        
+        
