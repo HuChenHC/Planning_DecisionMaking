@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <utility>
+#include <time.h>
 
 #define SYMBOLS 0
 #define INITIAL 1
@@ -889,69 +890,68 @@ void go(int offset, int k, vector<string> asb) {
   }
 }
 
+class cell{
+public:
+    bool ifClosed;
+    double f,g;
+    node* theNode;
+    GroundedAction* theAction;   
+    cell(bool a, double b, double c, node* d, GroundedAction* e) {
+        ifClosed = a;
+        f = b;
+        g = c;
+        theNode = d;
+        theAction = e;
+    }
+};
+
+string nodeToString(node* nIn) {
+    string tmpt = "";
+    for (GroundedCondition gcd : nIn->getData()) {
+        tmpt += gcd.toString();
+    }
+    return tmpt;
+}
+
+
 list<GroundedAction> planner(Env* env)
 {
+    clock_t beginTime;
+    beginTime = clock();
     // this is where you insert your planner
     list<GroundedAction> thePath;
-    vector<node*> recordPath;
     
     // start and goal 
     node* start = new node(env->get_ininitial_conditions());
     node* goal = new node(env->get_goal_conditions());
     
-    // set openList<f, node*> and insert start into it
-	set<pair<double, node*>> openList;
-	openList.insert(make_pair(calHeu(start, goal), start));
-	// unordered_map<node*, <<g, if closed>, GroundedAction>> for future back track
-	unordered_map<node*, pair<pair<double, bool>, GroundedAction*> > reachedNode;
+    // set openList<f, nodeString> and insert start into it
+	set<pair<double, string>> openList;
+	openList.insert(make_pair(calHeu(start, goal), nodeToString(start)));
+	// unordered_map<nodeString, cell(ifClosed, f, g, theNode*, theAction)> for future back track
+	unordered_map<string, cell*> reachedNode;
     GroundedAction* startGa = new GroundedAction("start", {"nothing"});
-	reachedNode[start] = make_pair(make_pair(0.0, false), startGa);
+	reachedNode[nodeToString(start)] = new cell(false, 0.0, 0.0, start, startGa);
 	int countInWhile = 0;
     //thePath.push_front(*startGa);
     
     // all actions and all symbles
     unordered_set<Action, ActionHasher, ActionComparator> allAct = env->get_actions();
     vector<string> allSyb(env->get_symbols().begin(), env->get_symbols().end()) ;
-// for (string str:allSyb) cout<< str << " ";
-// cout<< endl;
 	// expand until openList is empty or goal reached
 	while(!openList.empty()) {
 		countInWhile++;
-		pair<double, node*> bestCell = *openList.begin();
+		pair<double, string> bestCell = *openList.begin();
 		openList.erase(openList.begin());
-		reachedNode[bestCell.second].first.second = true;
-// // movement in close list
-// cout<< endl << reachedNode[bestCell.second].second->get_name()<<" ";
-// for (string str : reachedNode[bestCell.second].second->get_arg_values()) {
-    // cout<<str<<" ";
-// }
-// cout<<endl;
-// for (GroundedCondition gcd : bestCell.second->getData()) {
-    // cout <<" "<< gcd.get_predicate()<<" ";
-    // for (string str : gcd.get_arg_values()) {
-        // cout<<str<<" ";
-    // }
-    // cout<<",";
-// }
-// cout<<endl;
+		reachedNode[bestCell.second]->ifClosed = true;
 		/*----------------if goal reached ,break--------------------*/
-		if (calHeu(bestCell.second, goal)==0.0) {
+		if (calHeu(reachedNode[bestCell.second]->theNode, goal)==0.0) {
 			printf("\n\nreach goal!!!\n\n");
-			node* backTrackNode = bestCell.second;
+			string backTrackNode = bestCell.second;
 			while (1) {
-// // condition after each movement
-// cout << endl;
-                // for (GroundedCondition gcd : backTrackNode->getData()) {
-    // cout << "" << gcd.get_predicate()<<" ";
-    // for (string str : gcd.get_arg_values()) {
-        // cout<<str<<" ";
-    // }
-    // cout<<", ";
-// }
-// cout<<endl;
-				thePath.push_front(*reachedNode[backTrackNode].second);
-				backTrackNode = backTrackNode->getParent();
-				if (reachedNode[backTrackNode].second->get_name().compare("start")==0) {break;}
+				thePath.push_front(*(reachedNode[backTrackNode]->theAction));
+				backTrackNode = nodeToString(reachedNode[backTrackNode]->theNode->getParent());
+				if (reachedNode[backTrackNode]->theAction->get_name().compare("start")==0) {break;}
 			}
 			break;
 		}
@@ -962,60 +962,40 @@ list<GroundedAction> planner(Env* env)
 		for (Action act : allAct) {
             // num of args taken by action
             int numOfSyb = act.get_args().size();
-// cout<< "num of syb: " << numOfSyb << endl;
             // get all possible combination from allSyb, store in allComb
             allComb.clear();
             go(0, numOfSyb, allSyb);
-// cout<<allComb.size()<<" "<< allComb.front().size()<<endl;
             for (list<string> comb : allComb) {
                 // form an action to check if valid successor
-                node* tmpt = childNode(bestCell.second, act, comb);
+                node* cNode = childNode(reachedNode[bestCell.second]->theNode, act, comb);
                 // if valid successor
-                if (tmpt != NULL) {
-// cout<<"     "<< act.get_name()<<" ";
-// for (string str : comb) {
-    // cout<<str<<" ";
-// }
-// cout<<endl;
-// // condition of successor
-// for (GroundedCondition gcd : tmpt->getData()) {
-    // cout << "     "<< gcd.get_predicate()<<" ";
-    // for (string str : gcd.get_arg_values()) {
-        // cout<<str<<" ";
-    // }
-    // cout<<",";
-// }
-// cout<<endl;
-                    double newG = reachedNode[bestCell.second].first.first + 1.0;
-                    double newF = newG + calHeu(tmpt, goal);
-                    bool reached = false;
-                    for (pair<node*, pair<pair<double, bool>, GroundedAction*> > aNode : reachedNode) {
-                       // if found, already reached
-                       if (calHeu(tmpt, aNode.first) == 0.0 && calHeu(aNode.first, tmpt) == 0.0) {
-                           reached = true;
-                           // if not closed, compare and update
-                           if (!aNode.second.first.second) {
-                                if (newG < aNode.second.first.first) {
-                                    aNode.second.first.first = newG;
-                                    aNode.second.second = new GroundedAction(act.get_name(), comb);
-                                    aNode.first->setParent(bestCell.second);
-// cout<<"      updated"<<endl;
-                                }
-// cout<<"      no better"<<endl;
-                           }
-                           // else, closed, do nothing
-                           else {
-// cout<<"               closed"<<endl;
-                           }
-                           break;
-                       }
+                if (cNode != NULL) {
+                    string tmpt = nodeToString(cNode);
+                    double newG = reachedNode[bestCell.second]->g + 1.0;
+                    double newF = newG + calHeu(cNode, goal);
+                    // if the succeccor already reached
+                    if (reachedNode.find(tmpt) != reachedNode.end()) {
+                        // if not closed, compare and update
+                        if (!reachedNode[tmpt]->ifClosed) {
+                            // if better, update
+                            if (newF < reachedNode[tmpt]->f) {
+                                reachedNode[tmpt]->f = newF;
+                                reachedNode[tmpt]->g = newG;
+                                reachedNode[tmpt]->theAction = new GroundedAction(act.get_name(), comb);
+                                reachedNode[tmpt]->theNode->setParent(reachedNode[tmpt]->theNode);
+                                // insert into openlist again, will be prompted before the previous one
+                                openList.insert(make_pair(newF, tmpt));
+                            }
+                            // else no better, do nothing
+                        }
+                        // else closed, do nothing
                     } 
-                    // see if not found, add to open
-                    if (!reached) {
-                        reachedNode[tmpt] = make_pair(make_pair(newG, false), new GroundedAction(act.get_name(), comb));
+                    // if not reached, add to openlist and reached list
+                    else {
                         openList.insert(make_pair(newF, tmpt));
-// cout<<"      added"<<endl;
+                        reachedNode[tmpt] = new cell(false, newF, newG, cNode, new GroundedAction(act.get_name(), comb));
                     }
+       
                 }
             }
             
@@ -1024,15 +1004,9 @@ list<GroundedAction> planner(Env* env)
         if (countInWhile >= 500000) break;
 	}
     
-    
-    
-    
-    // blocks world example
-    list<GroundedAction> actions;
-    actions.push_back(GroundedAction("MoveToTable", { "A", "B" }));
-    actions.push_back(GroundedAction("Move", { "C", "Table", "A" }));
-    actions.push_back(GroundedAction("Move", { "B", "Table", "C" }));
 
+    cout<< endl << "time consumption: " << (float(clock()-beginTime))/CLOCKS_PER_SEC << " seconds." << endl;
+    
     return thePath;
 }
 
